@@ -62,6 +62,12 @@ class Permutation:
       l.append(self(other(i)))
     return Permutation(l)
 
+  def __eq__(self, other):
+    return self._l == other._l
+  
+  def __hash__(self):
+    return hash(repr(self._l))
+
   def inv(self):
     l = [None for _ in self._l]
     for i in range(len(self._l)):
@@ -116,7 +122,7 @@ class Trivial(Representation):
   def ostensible_dimension(self) -> int:
     return 1
 
-  def rho(self, pi) -> float:
+  def rho(self, pi) -> np.array:
     return np.array([[1.0]])
 
 
@@ -132,7 +138,7 @@ class Sign(Representation):
   def ostensible_dimension(self) -> int:
     return 1
   
-  def rho(self, pi) -> float:
+  def rho(self, pi) -> np.array:
     signum = 1.0
     checked_indices = set()
     while True:
@@ -208,7 +214,7 @@ class S4_StandardProductSign(Representation):
   def ostensible_dimension(self) -> int:
     return self.standard.ostensible_dimension()
   
-  def rho(self, pi):
+  def rho(self, pi) -> np.array:
     standard_rho = self.standard.rho(pi)
     sign_rho = self.sign.rho(pi)[0][0]
     return sign_rho * standard_rho
@@ -288,6 +294,19 @@ def make_uniform_among(group, predicate: Callable[[Permutation], bool]):
   return mu
 
 
+def make_random_transposition(group):
+  """
+  The 'random transposition' shuffle described on p.24 of
+  Persi Diaconis's "Group Representations in Probability and Statistics".
+  """
+  mu = {k: 0.0 for k in iter(group)}
+  mu[group.identity()] = 1.0 / group.n
+  for pi in iter(group):
+    if is_transposition(pi):
+      mu[pi] = 2.0 / group.n**2
+  return mu
+
+
 def to_fourier(mu, representation) -> np.array:
   dim = representation.ostensible_dimension()
   res = np.zeros([dim, dim])
@@ -297,7 +316,7 @@ def to_fourier(mu, representation) -> np.array:
 
 
 def from_fouriers(representations, mu_hat):
-  scaling_factor = (1 / len(representations[0].group))
+  scaling_factor = 1.0 / len(representations[0].group)
   def f(pi):
     accum = 0.0
     for rep in representations:
@@ -309,7 +328,7 @@ def from_fouriers(representations, mu_hat):
 def main():
   s_3 = PermutationGroup(3)
   reps = [Trivial(s_3), Sign(s_3), Standard(s_3)]
-  mu = make_uniform_among(s_3, lambda x: is_transposition(x) or is_identity(x))
+  mu = make_random_transposition(s_3)
   
   mu_hats = [to_fourier(mu, rep) for rep in reps]
   mu_hats_squared = [mu_hat * mu_hat for mu_hat in mu_hats]
@@ -327,7 +346,7 @@ def main():
 
   s_4 = PermutationGroup(4)
   reps = [Trivial(s_4), Sign(s_4), KleinQuotient(), Standard(s_4), S4_StandardProductSign()]
-  mu = make_uniform_among(s_4, lambda x: is_transposition(x) or is_identity(x))
+  mu = make_random_transposition(s_4)
 
   mu_hats = [to_fourier(mu, rep) for rep in reps]
   mu_hats_squared = [mu_hat * mu_hat for mu_hat in mu_hats]
@@ -339,8 +358,11 @@ def main():
     raise ValueError
   
   mu_convolve_mu = from_fouriers(reps, rep_to_mu_hat)
+  count = 0.0
   for pi in s_4:
+    count += mu_convolve_mu(pi)
     print(pi, mu_convolve_mu(pi))
+  print(count)
   return
 
 
